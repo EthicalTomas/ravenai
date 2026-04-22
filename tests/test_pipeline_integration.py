@@ -182,7 +182,7 @@ class TestFullPipelineIntegration(unittest.TestCase):
 			}
 			for mode, count in expected_stage_counts.items():
 				engine = build_engine(config, mode=mode)
-				self.assertEqual(len(engine._stages), count, msg=f"unexpected stage count for mode={mode}")
+				self.assertEqual(engine.stage_count(), count, msg=f"unexpected stage count for mode={mode}")
 
 
 if __name__ == "__main__":
