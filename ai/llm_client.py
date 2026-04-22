@@ -76,7 +76,7 @@ class OpenRouterClient(OpenAIClient):
 	base_url: str = "https://openrouter.ai/api/v1"
 
 	def generate(self, request: LLMRequest) -> LLMResponse:
-		resp = super().generate(request)
+		resp = super(OpenRouterClient, self).generate(request)
 		resp.metadata["provider"] = "openrouter"
 		return resp
 
