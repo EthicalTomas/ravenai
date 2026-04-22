@@ -46,7 +46,9 @@ from utils.http_client import HTTPClient, HTTPClientConfig
 
 LOGGER = logging.getLogger(__name__)
 SUPPORTED_MODES = {"full", "recon", "scan", "ai", "analysis", "report"}
-_PAYLOAD_CACHE: dict[str, list[str]] | None = None
+_CACHED_PAYLOADS: dict[str, list[str]] | None = None
+DEFAULT_HTTP_TIMEOUT_SECONDS = 10.0
+DEFAULT_DNS_TIMEOUT_SECONDS = 2.0
 
 
 def load_runtime_config(settings_path: Path) -> Settings:
@@ -135,25 +137,25 @@ def _timeout_from(config: Settings, default: float, *keys: str) -> float:
 
 
 def _load_all_payloads() -> dict[str, list[str]]:
-	global _PAYLOAD_CACHE
-	if _PAYLOAD_CACHE is not None:
-		return _PAYLOAD_CACHE
+	global _CACHED_PAYLOADS
+	if _CACHED_PAYLOADS is not None:
+		return _CACHED_PAYLOADS
 
 	path = Path("configs/payloads.yaml")
 	if not path.exists():
-		_PAYLOAD_CACHE = {}
-		return _PAYLOAD_CACHE
+		_CACHED_PAYLOADS = {}
+		return _CACHED_PAYLOADS
 
 	try:
 		with path.open("r", encoding="utf-8") as file:
 			data = yaml.safe_load(file)
-	except Exception:
-		_PAYLOAD_CACHE = {}
-		return _PAYLOAD_CACHE
+	except (OSError, yaml.YAMLError):
+		_CACHED_PAYLOADS = {}
+		return _CACHED_PAYLOADS
 
 	if not isinstance(data, dict):
-		_PAYLOAD_CACHE = {}
-		return _PAYLOAD_CACHE
+		_CACHED_PAYLOADS = {}
+		return _CACHED_PAYLOADS
 
 	normalized: dict[str, list[str]] = {}
 	for vuln_type, values in data.items():
@@ -162,8 +164,8 @@ def _load_all_payloads() -> dict[str, list[str]]:
 		payloads = values.get("payloads", [])
 		if isinstance(payloads, list):
 			normalized[vuln_type] = [str(item) for item in payloads]
-	_PAYLOAD_CACHE = normalized
-	return _PAYLOAD_CACHE
+	_CACHED_PAYLOADS = normalized
+	return _CACHED_PAYLOADS
 
 
 def _load_payloads(vuln_type: str) -> list[str]:
@@ -176,14 +178,14 @@ def build_engine(config: Settings, mode: str = "full", output_dir_override: Path
 	llm_client = build_llm_client(config.ai)
 	http_client = HTTPClient(
 		HTTPClientConfig(
-			timeout_seconds=_timeout_from(config, 10.0, "request", "http_seconds"),
+			timeout_seconds=_timeout_from(config, DEFAULT_HTTP_TIMEOUT_SECONDS, "request", "http_seconds"),
 			user_agent=config.scanner.user_agent,
 		)
 	)
 
 	subdomain_discoverer = SubdomainDiscoverer(
 		candidate_labels=config.recon.candidate_subdomains,
-		dns_timeout_seconds=_timeout_from(config, 2.0, "dns", "dns_seconds"),
+		dns_timeout_seconds=_timeout_from(config, DEFAULT_DNS_TIMEOUT_SECONDS, "dns", "dns_seconds"),
 	)
 	crawler = BasicCrawler(client=http_client, max_pages=config.recon.crawler_max_pages)
 	headless_crawler = HeadlessCrawler() if config.recon.headless_enabled else None
@@ -226,8 +228,10 @@ def build_engine(config: Settings, mode: str = "full", output_dir_override: Path
 		min_confidence=config.scanner.sqli_min_confidence,
 		severity=config.scanner.sqli_severity,
 	)
+	idor_scanner = IDORScanner(client=http_client)
+	auth_scanner = AuthScanner(client=http_client)
 	fuzzing_engine = FuzzingEngine(
-		scanners=[xss_scanner, sqli_scanner, IDORScanner(client=http_client), AuthScanner(client=http_client)],
+		scanners=[xss_scanner, sqli_scanner, idor_scanner, auth_scanner],
 		max_workers=config.scanner.max_workers,
 		focus_mode=config.scan_controls.bug_bounty_mode,
 	)
