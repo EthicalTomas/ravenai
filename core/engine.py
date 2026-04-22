@@ -35,6 +35,9 @@ class Engine:
 		self._stages.append(stage)
 		LOGGER.debug("Added stage '%s' to engine", stage.name)
 
+	def stage_count(self) -> int:
+		return len(self._stages)
+
 	def run(self, target: Target) -> object:
 		current_data: object = target
 		LOGGER.info("Engine run started for domain '%s'", target.domain)
