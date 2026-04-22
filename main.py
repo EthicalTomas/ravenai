@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from functools import lru_cache
 import logging
 from pathlib import Path
 
@@ -46,7 +47,6 @@ from utils.http_client import HTTPClient, HTTPClientConfig
 
 LOGGER = logging.getLogger(__name__)
 SUPPORTED_MODES = {"full", "recon", "scan", "ai", "analysis", "report"}
-_CACHED_PAYLOADS: dict[str, list[str]] | None = None
 DEFAULT_HTTP_TIMEOUT_SECONDS = 10.0
 DEFAULT_DNS_TIMEOUT_SECONDS = 2.0
 
@@ -67,7 +67,7 @@ def build_llm_client(config: AIConfig) -> LLMClient:
 			model=config.model,
 			base_url=config.base_url or "https://api.openai.com/v1",
 		)
-	if provider == "openrouter":
+	elif provider == "openrouter":
 		from ai.llm_client import OpenRouterClient
 
 		return OpenRouterClient(
@@ -75,7 +75,7 @@ def build_llm_client(config: AIConfig) -> LLMClient:
 			model=config.model,
 			base_url=config.base_url or "https://openrouter.ai/api/v1",
 		)
-	if provider == "local":
+	elif provider == "local":
 		from ai.llm_client import LocalOllamaClient
 
 		return LocalOllamaClient(
@@ -136,26 +136,21 @@ def _timeout_from(config: Settings, default: float, *keys: str) -> float:
 	return default
 
 
+@lru_cache(maxsize=1)
 def _load_all_payloads() -> dict[str, list[str]]:
-	global _CACHED_PAYLOADS
-	if _CACHED_PAYLOADS is not None:
-		return _CACHED_PAYLOADS
-
 	path = Path("configs/payloads.yaml")
 	if not path.exists():
-		_CACHED_PAYLOADS = {}
-		return _CACHED_PAYLOADS
+		return {}
 
 	try:
 		with path.open("r", encoding="utf-8") as file:
 			data = yaml.safe_load(file)
 	except (OSError, yaml.YAMLError):
-		_CACHED_PAYLOADS = {}
-		return _CACHED_PAYLOADS
+		LOGGER.warning("Failed to load payload definitions from %s", path, exc_info=True)
+		return {}
 
 	if not isinstance(data, dict):
-		_CACHED_PAYLOADS = {}
-		return _CACHED_PAYLOADS
+		return {}
 
 	normalized: dict[str, list[str]] = {}
 	for vuln_type, values in data.items():
@@ -164,8 +159,7 @@ def _load_all_payloads() -> dict[str, list[str]]:
 		payloads = values.get("payloads", [])
 		if isinstance(payloads, list):
 			normalized[vuln_type] = [str(item) for item in payloads]
-	_CACHED_PAYLOADS = normalized
-	return _CACHED_PAYLOADS
+	return normalized
 
 
 def _load_payloads(vuln_type: str) -> list[str]:
